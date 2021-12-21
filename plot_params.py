@@ -19,3 +19,4 @@ plt.rcParams['ytick.right']       = True
 plt.rcParams["figure.figsize"]    = (7, 6)
 plt.rcParams["mathtext.fontset"]  = 'stix'
 plt.rcParams["font.family"]       = 'STIXGeneral'
+plt.rcParams["font.size"]         = 65

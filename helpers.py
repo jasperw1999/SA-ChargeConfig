@@ -159,19 +159,21 @@ class PostProcess():
             color='tab:orange', 
             edgecolors='darkgoldenrod'
         )
-        energies = [self.total_energy(br) for br in best_runs_without_best]
-        energies = (energies - min(energies)) / (max(energies) - min(energies))
 
-        for e, br in zip(energies, best_runs_without_best):
-            plot_br = self.get_minimized_config(standard_pos, br)
-            plt.scatter(
-                plot_br[:, 0], 
-                plot_br[:, 1], 
-                color=plt.cm.get_cmap('Blues')(e),
-                edgecolors=plt.cm.get_cmap('Blues')(e + 0.3), 
-                s=150*e, 
-                zorder=-e
-            )
+        if len(best_runs_without_best) > 0:
+            energies = [self.total_energy(br) for br in best_runs_without_best]
+            energies = (energies - min(energies)) / (max(energies) - min(energies))
+
+            for e, br in zip(energies, best_runs_without_best):
+                plot_br = self.get_minimized_config(standard_pos, br)
+                plt.scatter(
+                    plot_br[:, 0], 
+                    plot_br[:, 1], 
+                    color=plt.cm.get_cmap('Blues')(e),
+                    edgecolors=plt.cm.get_cmap('Blues')(e + 0.3), 
+                    s=150*e, 
+                    zorder=-e
+                )
 
         circle = plt.Circle((0, 0), 1, fill=False)
         plt.gca().add_patch(circle)
@@ -277,9 +279,12 @@ class CircleCharges():
         pass
 
 
-    def get_results(self):
+    def get_results(self, variability=False):
         pp = PostProcess(self.best_runs)
-        var_score = pp.variability_score()
+        if variability:
+            var_score = pp.variability_score()
+        else:
+            var_score = 1
         lowest, highest, mean, std = pp.energy_overview()
         dct = {
             'variability': var_score,
@@ -317,6 +322,15 @@ class CircleCharges():
             many_attemps = np.array(many_attemps)
             best = self.choose_best_run(many_attemps)[0]
             self.best_runs[i] = best
+    
+    def run_without_selection(self):
+            many_attemps = (
+                Parallel(n_jobs=-1, verbose=1)
+                (delayed(self.single_run)
+                () for _ in range(self.n_runs))
+            )
+            self.best_runs = np.array(many_attemps)
+
         
     def total_energy(self, pos):
         dist = cdist(pos, pos)

@@ -127,8 +127,16 @@ class RunSimulation():
     def random_move_with_drift(self, pos, i, j):
         og = deepcopy(pos)
 
-        normal_force_move = self.get_force(pos, i)
-        normal_random_move = self.get_random()
+        if self.force_influence > 0:
+            normal_force_move = self.get_force(pos, i)
+        else:
+            normal_force_move = 0
+            
+        if self.random_influence > 0:
+            normal_random_move = self.get_random()
+        else:
+            normal_random_move = 0
+
         step = self.get_step(normal_force_move, normal_random_move, j)
         pos[i] = og[i] + step
         
@@ -325,7 +333,7 @@ class CircleCharges():
     
     def run_without_selection(self):
             many_attemps = (
-                Parallel(n_jobs=-1, verbose=1)
+                Parallel(n_jobs=-1, verbose=0)
                 (delayed(self.single_run)
                 () for _ in range(self.n_runs))
             )

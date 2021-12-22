@@ -144,7 +144,7 @@ class PostProcess():
         self.best_of_best_index = best_of_best_index
 
     
-    def make_figure(self, title, xlabel, ylabel, savepath):
+    def make_figure(self, title, xlabel, ylabel, savepath, show=True):
         standard_pos = self.best_runs[self.best_of_best_index]
         best_runs_without_best = np.delete(
             self.best_runs, self.best_of_best_index, axis=0
@@ -152,21 +152,27 @@ class PostProcess():
         plt.figure(figsize=(6, 6))
         plt.box(False)
 
-        for br in best_runs_without_best:
+        plt.scatter(
+            standard_pos[:, 0], 
+            standard_pos[:, 1], 
+            s=300, zorder=-100, 
+            color='tab:orange', 
+            edgecolors='darkgoldenrod'
+        )
+        energies = [self.total_energy(br) for br in best_runs_without_best]
+        energies = (energies - min(energies)) / (max(energies) - min(energies))
+
+        for e, br in zip(energies, best_runs_without_best):
             plot_br = self.get_minimized_config(standard_pos, br)
             plt.scatter(
                 plot_br[:, 0], 
                 plot_br[:, 1], 
-                color='tab:blue', 
-                edgecolors='darkslategray'
+                color=plt.cm.get_cmap('Blues')(e),
+                edgecolors=plt.cm.get_cmap('Blues')(e + 0.3), 
+                s=150*e, 
+                zorder=-e
             )
-        plt.scatter(
-            standard_pos[:, 0], 
-            standard_pos[:, 1], 
-            s=500, zorder=-100, 
-            color='tab:orange', 
-            edgecolors='saddlebrown'
-        )
+
         circle = plt.Circle((0, 0), 1, fill=False)
         plt.gca().add_patch(circle)
         plt.yticks(np.linspace(-1, 1, 5))
@@ -178,12 +184,27 @@ class PostProcess():
         plt.tight_layout()
         if savepath:
             plt.savefig(savepath, bbox_inches="tight")
-        plt.show()
+        if show:
+            plt.show()
+        else:
+            plt.close()
     
+    
+    def energy_overview(self):
+        energies = [self.total_energy(br) for br in self.best_runs]
+        lowest = min(energies)
+        highest = max(energies)
+        mean = np.mean(energies)
+        std = np.std(energies)
+        return lowest, highest, mean, std
+        
+
     def variability_score(self):
         
         scores_mean = np.zeros((len(self.best_runs)))
-        for i, br in enumerate(self.best_runs):
+        # for i, br in enumerate(self.best_runs):
+        for i in tqdm(range(len(self.best_runs)), desc='variability'):
+            br = self.best_runs[i]
             optimized_configs = [
                 self.get_minimized_config(br, i) for i in self.best_runs
             ]
@@ -214,6 +235,10 @@ class PostProcess():
         y = np.sin(theta) * r
         pos = np.stack((x, y), axis=1)
         return pos
+    
+    def total_energy(self, pos):
+        dist = cdist(pos, pos)
+        return (1 / dist[dist != 0]).sum() / 2
     
 
 class CircleCharges():
@@ -251,6 +276,21 @@ class CircleCharges():
         pp.make_figure(title, xlabel, ylabel, savepath)
         pass
 
+
+    def get_results(self):
+        pp = PostProcess(self.best_runs)
+        var_score = pp.variability_score()
+        lowest, highest, mean, std = pp.energy_overview()
+        dct = {
+            'variability': var_score,
+            'min_energy': lowest, 
+            'max_energy': highest,
+            'mean_energy': mean, 
+            'std_energy': std
+        }
+        return dct
+
+
     def get_variability_score(self):
         pp = PostProcess(self.best_runs)
         score = pp.variability_score()
@@ -262,13 +302,13 @@ class CircleCharges():
         highest = max(energies)
         mean = np.mean(energies)
         std = np.std(energies)
-        print(f'lowest {round(lowest, 3)}')
-        print(f'highest {round(highest, 3)}')
-        print(f'mean {round(mean, 3)}')
-        print(f'std {round(std, 3)}')
+        print(f'lowest {lowest}')
+        print(f'highest {highest}')
+        print(f'mean {mean}')
+        print(f'std {std}')
 
     def run(self):
-        for i in tqdm(range(self.n_runs)):
+        for i in tqdm(range(self.n_runs), desc='simulation'):
             many_attemps = (
                 Parallel(n_jobs=-1, verbose=0)
                 (delayed(self.single_run)

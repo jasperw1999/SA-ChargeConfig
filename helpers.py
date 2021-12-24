@@ -7,6 +7,9 @@ from joblib import Parallel, delayed
 from matplotlib.animation import FuncAnimation
 
 class RunSimulation():
+    """
+    Class that handles running a single simulation.
+    """
     def __init__(
         self, 
         n_charges, 
@@ -27,7 +30,7 @@ class RunSimulation():
         self.force_influence = force_influence
     
          # initialize charges
-        r = np.random.rand(n_charges) * 0.1
+        r = np.random.rand(n_charges)
         theta = np.random.rand(n_charges) * 2 * np.pi
         x = np.cos(theta) * r
         y = np.sin(theta) * r
@@ -40,6 +43,9 @@ class RunSimulation():
 
 
     def run(self):
+        """
+        Main loop of the simulation.
+        """
         # loop over temperatures
         for j in tqdm(range(self.n_steps)):
             self.pos_history[j] = self.pos
@@ -57,11 +63,17 @@ class RunSimulation():
         return self.pos
 
     def total_energy(self, pos):
+        """
+        Returns the total energy of a given configuration.
+        """
         dist = cdist(pos, pos)
         return (1 / dist[dist != 0]).sum() / 2
 
 
     def accept_move(self, energy_after, energy_before, j):
+        """
+        Determines wheter or not to accept a move given the energy before and after making the move.
+        """
         delta_energy = energy_after - energy_before
         if delta_energy < 0:
             return True
@@ -71,6 +83,10 @@ class RunSimulation():
         return False
 
     def get_force(self, pos, i):
+        """
+        Return the force acting on the i'th particle.
+        """
+
         # total distance to charge i
         r = cdist(pos, pos)
         r = r[i]
@@ -97,12 +113,19 @@ class RunSimulation():
 
 
     def get_random(self):
+        """ 
+        Generate a random move.
+        """
         random_move = np.random.uniform(-1, 1, 2)
         normal_random_move = random_move / np.linalg.norm(random_move)
         return normal_random_move
 
 
     def get_step(self, normal_force_move, normal_random_move, j):
+        """
+        Combine the influence of the random and force moves into a single move.
+        """
+
         combined_step = (normal_random_move * self.random_influence 
                       + normal_force_move * self.force_influence)
         normal_step =  combined_step / np.linalg.norm(combined_step)
@@ -110,7 +133,10 @@ class RunSimulation():
         return step
     
     def move_across_circle(self, pos, i, step):
-        # if not, move across the circle edge
+        """
+        Move a particle across the circle if it wants to exit the circle. 
+
+        """
         step_size = np.linalg.norm(step)
         dist_to_circle = (
             self.circle_radius - np.sqrt(pos[i, :][0] ** 2 + pos[i, :][1] ** 2)
@@ -125,6 +151,9 @@ class RunSimulation():
         return pos
 
     def random_move_with_drift(self, pos, i, j):
+        """
+        Returns a position array where the i'th partcicle has made its move.
+        """
         og = deepcopy(pos)
 
         if self.force_influence > 0:
@@ -147,12 +176,18 @@ class RunSimulation():
 
 
 class PostProcess():
+    """
+    Class that handles the creating of figures and scores after the simulation. 
+    """
     def __init__(self, best_runs, best_of_best_index=None):
         self.best_runs = best_runs
         self.best_of_best_index = best_of_best_index
 
     
     def make_figure(self, title, xlabel, ylabel, savepath, show=True):
+        """
+        Creates a figure of the resulting configurations. 
+        """
         standard_pos = self.best_runs[self.best_of_best_index]
         best_runs_without_best = np.delete(
             self.best_runs, self.best_of_best_index, axis=0
@@ -201,6 +236,9 @@ class PostProcess():
     
     
     def energy_overview(self):
+        """ 
+        Gives information about the energy of several runs. 
+        """
         energies = [self.total_energy(br) for br in self.best_runs]
         lowest = min(energies)
         highest = max(energies)
@@ -210,6 +248,9 @@ class PostProcess():
         
 
     def variability_score(self):
+        """
+        Gives a score based on how much the input configurations are alike. 
+        """
         
         scores_mean = np.zeros((len(self.best_runs)))
         # for i, br in enumerate(self.best_runs):
@@ -226,16 +267,26 @@ class PostProcess():
         return score
     
     def difference_score(self, theta_rotation, standard_pos, pos):
+        """
+        Returns a measure of how much two configurations differ from each other. 
+        """
         pos = self.rotation(pos, theta_rotation)
         return cdist(standard_pos, pos).min(axis=1).sum()
 
     def get_minimized_config(self, standard_pos, pos, precision=3600):
+        """
+        Finds the rotation between two configuration that minimized the difference between them.
+        """
+
         radians = np.linspace(0, 2 * np.pi, precision)
         scores = [self.difference_score(r, standard_pos, pos) for r in radians]
         best_radian = radians[np.argmin(scores)]
         return self.rotation(pos, best_radian)   
     
     def rotation(self, pos, theta_rotation):
+        """
+        Rotation a configuration theta radians.
+        """
         x = pos[:, 0]
         y = pos[:, 1]
         r = np.sqrt(x ** 2 + y ** 2)
@@ -247,11 +298,17 @@ class PostProcess():
         return pos
     
     def total_energy(self, pos):
+        """
+        Return the total energy in a configuration. 
+        """
         dist = cdist(pos, pos)
         return (1 / dist[dist != 0]).sum() / 2
     
 
 class CircleCharges():
+    """ 
+    Class that handles running multiple configurations. 
+    """
     def __init__(
         self, 
         n_charges, 
@@ -281,13 +338,18 @@ class CircleCharges():
 
 
     def produce_figure(self, title=None, xlabel=None, ylabel=None, savepath=None):
+        """
+        Create a figure of the result of the simulation.
+        """
         best_of_best_index = self.choose_best_run(self.best_runs)[1]
         pp = PostProcess(self.best_runs, best_of_best_index)
         pp.make_figure(title, xlabel, ylabel, savepath)
-        pass
 
 
     def get_results(self, variability=False):
+        """
+        Returns some metrics regarding the result of the run.
+        """
         pp = PostProcess(self.best_runs)
         if variability:
             var_score = pp.variability_score()
@@ -305,22 +367,18 @@ class CircleCharges():
 
 
     def get_variability_score(self):
+        """ 
+        Obtains and return a socre that indicates how much several configurations are alike.
+        """
         pp = PostProcess(self.best_runs)
         score = pp.variability_score()
         return score
     
-    def print_energy_overview(self):
-        energies = [self.total_energy(br) for br in self.best_runs]
-        lowest = min(energies)
-        highest = max(energies)
-        mean = np.mean(energies)
-        std = np.std(energies)
-        print(f'lowest {lowest}')
-        print(f'highest {highest}')
-        print(f'mean {mean}')
-        print(f'std {std}')
 
     def run(self):
+        """
+        Main loop of the simulation. Run the simulation multiple times and keep the best results.
+        """
         for i in tqdm(range(self.n_runs), desc='simulation'):
             many_attemps = (
                 Parallel(n_jobs=-1, verbose=0)
@@ -332,19 +390,28 @@ class CircleCharges():
             self.best_runs[i] = best
     
     def run_without_selection(self):
-            many_attemps = (
-                Parallel(n_jobs=-1, verbose=0)
-                (delayed(self.single_run)
-                () for _ in range(self.n_runs))
-            )
-            self.best_runs = np.array(many_attemps)
+        """
+        Run the simulation but do not discard any of the results.
+        """
+        many_attemps = (
+            Parallel(n_jobs=-1, verbose=0)
+            (delayed(self.single_run)
+            () for _ in range(self.n_runs))
+        )
+        self.best_runs = np.array(many_attemps)
 
         
     def total_energy(self, pos):
+        """
+        Returns the total energy of a given configuration.
+        """
         dist = cdist(pos, pos)
         return (1 / dist[dist != 0]).sum() / 2
 
     def choose_best_run(self, runs):
+        """ 
+        Returns the configuration with the lowest total energy.
+        """
         energies = np.zeros(len(runs))
         for i, r in enumerate(runs):
             e = self.total_energy(r)
@@ -354,6 +421,9 @@ class CircleCharges():
         return best, index_best
 
     def single_run(self):
+        """
+        Runs the simulation just one time. 
+        """
         rs = RunSimulation(
             self.n_charges,
             self.circle_radius,
@@ -366,16 +436,3 @@ class CircleCharges():
         )
         final_pos =  rs.run()
         return final_pos
-
-
-def cooling_logistic(steps, B, vu, M):
-    i = np.linspace(10, 1, steps)
-    T = 1 / (1 + np.exp(- B * (i - M)) ** (1 / vu)) 
-    return T
-
-
-def cooling_exponential(steps, T_init, constant):
-    T = np.zeros(steps)
-    for i in range(steps):
-        T[i] = T_init*pow(constant,i)
-    return T
